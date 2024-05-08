@@ -173,6 +173,33 @@ class TestIntensity:
         }
         assert_result(island, expected_island, nodes, check_names=False)
 
+    def test_blocks_counts(self):
+        graph = (
+            Graph.build_contiguity(self.df_tessellation, rook=False)
+            .higher_order(k=5, lower_order=True)
+            .assign_self_weight()
+        )
+
+        unweighted = mm.block_counts(self.df_tessellation["bID"], graph)
+        unweighted_expected = {
+            "count": 144,
+            "min": 3,
+            "max": 8,
+            "mean": 5.222222222222222,
+        }
+        assert_result(unweighted, unweighted_expected, self.df_tessellation)
+
+        count = mm.block_counts(
+            self.df_tessellation["bID"], graph, self.df_tessellation["area"]
+        )
+        count_expected = {
+            "count": 144,
+            "min": 2.0989616504225266e-05,
+            "max": 4.2502425045664464e-05,
+            "mean": 3.142437439120778e-05,
+        }
+        assert_result(count, count_expected, self.df_tessellation)
+
 
 class TestIntensityEquality:
     def setup_method(self):
@@ -317,3 +344,25 @@ class TestIntensityEquality:
         assert_series_equal(
             islands_old, islands_new, check_names=False, check_dtype=False
         )
+
+    def test_blocks_counts(self):
+        graph = (
+            Graph.build_contiguity(self.df_tessellation, rook=False)
+            .higher_order(k=5, lower_order=True)
+            .assign_self_weight()
+        )
+        sw = mm.sw_high(k=5, gdf=self.df_tessellation, ids="uID")
+
+        unweighted_new = mm.block_counts(self.df_tessellation["bID"], graph)
+        unweighted_old = mm.BlocksCount(
+            self.df_tessellation, "bID", sw, "uID", weighted=False
+        ).series
+        assert_series_equal(
+            unweighted_new, unweighted_old, check_names=False, check_dtype=False
+        )
+
+        count_new = mm.block_counts(
+            self.df_tessellation["bID"], graph, self.df_tessellation["area"]
+        )
+        count_old = mm.BlocksCount(self.df_tessellation, "bID", sw, "uID").series
+        assert_series_equal(count_new, count_old, check_names=False, check_dtype=False)
