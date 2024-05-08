@@ -425,12 +425,33 @@ class TestDescribe:
 class TestDiversityEquivalence:
     def setup_method(self):
         test_file_path = mm.datasets.get_path("bubenec")
+        self.df_buildings = gpd.read_file(test_file_path, layer="buildings")
+        self.df_buildings["area"] = self.df_buildings.geometry.area
+        self.df_buildings["height"] = np.linspace(10.0, 30.0, 144)
+        self.df_streets = gpd.read_file(test_file_path, layer="streets")
+        self.df_streets["nID"] = mm.unique_id(self.df_streets)
+
+        self.df_buildings["fl_area"] = mm.FloorArea(self.df_buildings, "height").series
         self.df_tessellation = gpd.read_file(test_file_path, layer="tessellation")
         self.df_tessellation["area"] = self.df_tessellation.geometry.area
+        self.df_buildings["nID"] = mm.get_network_id(
+            self.df_buildings, self.df_streets, "nID"
+        )
+        blocks = mm.Blocks(
+            self.df_tessellation, self.df_streets, self.df_buildings, "bID", "uID"
+        )
+        self.blocks = blocks.blocks
+        self.df_buildings["bID"] = blocks.buildings_id
+        self.df_tessellation["bID"] = blocks.tessellation_id
         self.sw = mm.sw_high(k=3, gdf=self.df_tessellation, ids="uID")
         self.graph = (
             Graph.build_contiguity(self.df_tessellation)
             .higher_order(k=3, lower_order=True)
+            .assign_self_weight()
+        )
+        self.graph_sw = (
+            Graph.build_contiguity(self.df_streets.set_index("nID"), rook=False)
+            .higher_order(k=2, lower_order=True)
             .assign_self_weight()
         )
 
@@ -765,34 +786,6 @@ class TestDiversityEquivalence:
         )
 
         assert_frame_equal(pandas_agg_vals, numba_agg_vals)
-
-
-class TestDescribeEquality:
-    def setup_method(self):
-        test_file_path = mm.datasets.get_path("bubenec")
-        self.df_buildings = gpd.read_file(test_file_path, layer="buildings")
-        self.df_streets = gpd.read_file(test_file_path, layer="streets")
-        self.df_tessellation = gpd.read_file(test_file_path, layer="tessellation")
-        self.df_streets["nID"] = mm.unique_id(self.df_streets)
-        self.df_buildings["height"] = np.linspace(10.0, 30.0, 144)
-        self.df_tessellation["area"] = self.df_tessellation.geometry.area
-        self.df_buildings["area"] = self.df_buildings.geometry.area
-        self.df_buildings["fl_area"] = mm.FloorArea(self.df_buildings, "height").series
-        self.df_buildings["nID"] = mm.get_network_id(
-            self.df_buildings, self.df_streets, "nID"
-        )
-        blocks = mm.Blocks(
-            self.df_tessellation, self.df_streets, self.df_buildings, "bID", "uID"
-        )
-        self.blocks = blocks.blocks
-        self.df_buildings["bID"] = blocks.buildings_id
-        self.df_tessellation["bID"] = blocks.tessellation_id
-        self.graph_sw = (
-            Graph.build_contiguity(self.df_streets.set_index("nID"), rook=False)
-            .higher_order(k=2, lower_order=True)
-            .assign_self_weight()
-        )
-        self.graph = Graph.build_knn(self.df_buildings.centroid, k=3)
 
     @pytest.mark.skipif(
         not PD_210, reason="aggregation is different in previous pandas versions"

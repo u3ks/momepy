@@ -1,7 +1,6 @@
 import warnings
 
 import geopandas as gpd
-import momempy as mm
 import numpy as np
 import pandas as pd
 import scipy as sp
@@ -9,6 +8,8 @@ from libpysal.graph import Graph
 from numpy.typing import NDArray
 from packaging.version import Version
 from pandas import DataFrame, Series
+
+import momepy as mm
 
 __all__ = [
     "describe",
