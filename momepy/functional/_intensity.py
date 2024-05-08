@@ -5,7 +5,7 @@ from geopandas import GeoDataFrame, GeoSeries
 from libpysal.graph import Graph
 from pandas import Series
 
-__all__ = ["courtyards", "area_ratio"]
+__all__ = ["courtyards", "area_ratio", "count"]
 
 
 def courtyards(geometry: GeoDataFrame | GeoSeries, graph: Graph) -> Series:
@@ -56,31 +56,31 @@ def area_ratio(
     left: Series, right: Series, right_group_key: Series | np.ndarray
 ) -> pd.Series:
     """
-    Calculate covered area ratio or floor area ratio of objects.
-    .. math::
-        \\textit{covering object area} \\over \\textit{covered object area}
+        Calculate covered area ratio or floor area ratio of objects.
+        .. math::
+            \\textit{covering object area} \\over \\textit{covered object area}
 
-    Adapted from :cite:`schirmer2015`.
+        Adapted from :cite:`schirmer2015`.
 
-    Parameters
-    ----------
-    left : Series
-        A GeoDataFrame with the areas of the objects being covered (e.g. land unit).
-    right : Series
-        A GeoDataFrame with the areas of the covering objects (e.g. building).
-    right_group_key: np.array | pd.Series
-        The group key that assigns objects from ``right`` to ``left``.
+        Parameters
+        ----------
+        left : Series
+            A GeoDataFrame with the areas of the objects being covered (e.g. land unit).
+        right : Series
+            A GeoDataFrame with the areas of the covering objects (e.g. building).
+        right_group_key: np.array | pd.Series
+            The group key that assigns objects from ``right`` to ``left``.
+        Returns
+        -------
+        Series
 
-    Returns
-    -------
-    Series
+    <<<<<<< HEAD
 
-
-    Examples
-    --------
-    >>> tessellation_df['CAR'] = mm.area_ratio(tessellation_df['area'],
-    ...                                       buildings_df['area'],
-    ...                                       buildings_df['uID'])
+        Examples
+        --------
+        >>> tessellation_df['CAR'] = mm.area_ratio(tessellation_df['area'],
+        ...                                       buildings_df['area'],
+        ...                                       buildings_df['uID'])
     """
 
     if isinstance(right_group_key, np.ndarray):
@@ -93,3 +93,61 @@ def area_ratio(
     results.loc[stats.index.values] = stats.values
 
     return results / left.values
+
+
+def count(
+    left: GeoDataFrame,
+    right: GeoDataFrame,
+    right_group_key: Series | np.ndarray,
+    weighted=False,
+) -> Series:
+    """
+    Calculate the number of elements within an aggregated structure. Aggregated
+    structures can typically be blocks, street segments, or street nodes (their
+    snapepd objects). The right gdf has to have a unique ID of aggregated structures
+    assigned before hand (e.g. using :py:func:`momepy.get_network_id`).
+    If ``weighted=True``, the number of elements will be divided by the area of
+    length (based on geometry type) of aggregated elements, to return relative value.
+
+    .. math::
+        \\sum_{i \\in aggr} (n_i);\\space \\frac{\\sum_{i \\in aggr} (n_i)}{area_{aggr}}
+
+    Adapted from :cite:`hermosilla2012` and :cite:`feliciotti2018`.
+
+    Parameters
+    ----------
+    left : GeoDataFrame
+        A GeoDataFrame containing aggregation to analyse.
+    right : GeoDataFrame
+        A GeoDataFrame containing objects to analyse.
+    right_group_key: np.array | pd.Series
+        The group key that assigns objects from ``right`` to ``left``.
+    weighted : bool (default False)
+        If ``True``, count will be divided by the area or length.
+
+    Examples
+    --------
+    >>> blocks_df['buildings_count'] = mm.count(blocks_df,
+    ...                                         buildings_df,
+    ...                                         buildings_df['bID'])
+    """
+
+    if isinstance(right_group_key, np.ndarray):
+        right_group_key = Series(right_group_key, index=right.index)
+
+    stats = (
+        right.loc[right_group_key.index.values].groupby(right_group_key.values).size()
+    )
+
+    # fill missing values with 0s
+    results = Series(0, left.index)
+    results.loc[stats.index.values] = stats.values
+    if weighted:
+        if left.geometry[0].geom_type in ["Polygon", "MultiPolygon"]:
+            results = results / left.geometry.area
+        elif left.geometry[0].geom_type in ["LineString", "MultiLineString"]:
+            results = results / left.geometry.length
+        else:
+            raise TypeError("Geometry type does not support weighting.")
+
+    return results
