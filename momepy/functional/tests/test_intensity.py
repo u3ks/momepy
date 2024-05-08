@@ -200,6 +200,23 @@ class TestIntensity:
         }
         assert_result(count, count_expected, self.df_tessellation)
 
+    def test_density(self):
+        graph = (
+            Graph.build_contiguity(self.df_tessellation, rook=False)
+            .higher_order(k=3, lower_order=True)
+            .assign_self_weight()
+        )
+        dens_new = mm.density(
+            self.df_buildings["fl_area"], self.df_tessellation.geometry.area, graph
+        )
+        dens_expected = {
+            "count": 144,
+            "mean": 1.6615871155383324,
+            "max": 2.450536855278486,
+            "min": 0.9746481727569978,
+        }
+        assert_result(dens_new["fl_area"], dens_expected, self.df_tessellation)
+
 
 class TestIntensityEquality:
     def setup_method(self):
@@ -366,3 +383,26 @@ class TestIntensityEquality:
         )
         count_old = mm.BlocksCount(self.df_tessellation, "bID", sw, "uID").series
         assert_series_equal(count_new, count_old, check_names=False, check_dtype=False)
+
+    def test_density(self):
+        sw = mm.sw_high(k=3, gdf=self.df_tessellation, ids="uID")
+        graph = (
+            Graph.build_contiguity(self.df_tessellation, rook=False)
+            .higher_order(k=3, lower_order=True)
+            .assign_self_weight()
+        )
+        dens_new = mm.density(
+            self.df_buildings["fl_area"], self.df_tessellation.geometry.area, graph
+        )
+
+        dens_old = mm.Density(
+            self.df_tessellation,
+            self.df_buildings["fl_area"],
+            sw,
+            "uID",
+            self.df_tessellation.area,
+        ).series
+
+        assert_series_equal(
+            dens_new["fl_area"], dens_old, check_names=False, check_dtype=False
+        )
