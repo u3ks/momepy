@@ -289,7 +289,10 @@ def gdf_to_nx(
 def _points_to_gdf(net):
     """Generate a point gdf from nodes. Helper for ``nx_to_gdf``."""
     node_xy, node_data = zip(*net.nodes(data=True), strict=True)
-    if isinstance(node_xy[0], int) and "x" in node_data[0]:
+
+    if isinstance(node_xy[0], int) and "xy" in node_data[0]:
+        geometry = [Point(*data["xy"]) for data in node_data]
+    elif isinstance(node_xy[0], int) and "x" in node_data[0]:
         geometry = [Point(data["x"], data["y"]) for data in node_data]  # osmnx graph
     else:
         geometry = [Point(*p) for p in node_xy]
@@ -299,14 +302,14 @@ def _points_to_gdf(net):
     return gdf_nodes
 
 
-def _lines_to_gdf(net, points, node_id):
+def _lines_to_gdf(net, points):
     """Generate a linestring gdf from edges. Helper for ``nx_to_gdf``."""
     starts, ends, edge_data = zip(*net.edges(data=True), strict=True)
     gdf_edges = gpd.GeoDataFrame(list(edge_data))
 
     if points is True:
-        gdf_edges["node_start"] = [net.nodes[s][node_id] for s in starts]
-        gdf_edges["node_end"] = [net.nodes[e][node_id] for e in ends]
+        gdf_edges["node_start"] = starts
+        gdf_edges["node_end"] = ends
 
     if "crs" in net.graph:
         gdf_edges.crs = net.graph["crs"]
@@ -314,7 +317,7 @@ def _lines_to_gdf(net, points, node_id):
     return gdf_edges
 
 
-def _primal_to_gdf(net, points, lines, spatial_weights, node_id):
+def _primal_to_gdf(net, points, lines, spatial_weights):
     """Generate gdf(s) from a primal network. Helper for ``nx_to_gdf``."""
     if points is True:
         gdf_nodes = _points_to_gdf(net)
@@ -324,7 +327,7 @@ def _primal_to_gdf(net, points, lines, spatial_weights, node_id):
             weights.transform = "b"
 
     if lines is True:
-        gdf_edges = _lines_to_gdf(net, points, node_id)
+        gdf_edges = _lines_to_gdf(net, points)
 
     if points is True and lines is True:
         if spatial_weights is True:
@@ -440,16 +443,20 @@ def nx_to_gdf(
             stacklevel=2,
         )
 
-    for nid, n in enumerate(net):
-        net.nodes[n][nodeID] = nid
+    net = nx.convert_node_labels_to_integers(net, label_attribute="xy")
 
-    return _primal_to_gdf(
+    result = _primal_to_gdf(
         net,
         points=points,
         lines=lines,
         spatial_weights=spatial_weights,
-        node_id=nodeID,
     )
+    if points and (lines or spatial_weights):
+        result[0][nodeID] = result[0].index.values
+    elif points:
+        result[nodeID] = result.index.values
+
+    return result
 
 
 def limit_range(vals, rng):
