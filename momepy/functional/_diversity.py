@@ -138,7 +138,7 @@ def describe(
 ) -> DataFrame:
     """Describe the distribution of values within a set neighbourhood.
 
-    Given the graph, computes the descriptive statisitcs of values within the
+    Given the graph, computes the descriptive statistics of values within the
     neighbourhood of each node. Optionally, the values can be limited to a certain
     quantile range before computing the statistics.
 
